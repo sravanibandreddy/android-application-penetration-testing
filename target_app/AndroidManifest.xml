@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.android.insecurebankv2"
+    android:versionCode="1"
+    android:versionName="1.0">
+
+    <!-- Permissions requested (Overly broad attack surface) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+
+    <application
+        android:allowBackup="true"
+        android:debuggable="true"
+        android:usesCleartextTraffic="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="InsecureBankv2"
+        android:theme="@style/AppTheme">
+
+        <!-- Main Launcher Activity -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Login Activity -->
+        <activity
+            android:name=".LoginActivity"
+            android:exported="false" />
+
+        <!-- VULNERABILITY M1: Exported Admin Component without permissions -->
+        <activity
+            android:name=".AdminPanel"
+            android:label="Admin Control Panel"
+            android:exported="true">
+            <!-- Publicly accessible by any malicious app on device -->
+        </activity>
+
+        <!-- Post Login Dashboard -->
+        <activity
+            android:name=".PostLogin"
+            android:exported="false" />
+
+    </application>
+
+</manifest>
