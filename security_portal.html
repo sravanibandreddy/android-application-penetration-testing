@@ -1,474 +1,1072 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobile Security Assessment Portal - InsecureBankv2</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Android Security Assessment Portal — SAST Audit Dashboard</title>
     <style>
         :root {
-            --bg-primary: #0f172a;
-            --bg-card: #1e293b;
-            --border-color: #334155;
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --accent-crit: #ef4444;
-            --accent-high: #f97316;
-            --accent-med: #eab308;
-            --accent-pass: #22c55e;
-            --accent-blue: #38bdf8;
+            color-scheme: dark;
+            --bg: #0b1020;
+            --panel: #121a2d;
+            --line: #27334b;
+            --muted: #9eacc5;
+            --text: #edf3ff;
+            --blue: #6bb8ff;
+            --red: #ff6b78;
+            --orange: #ffad66;
+            --yellow: #f5d36b;
+            --green: #78ddb0;
+            --border-hover: #4d6899;
         }
 
         * {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
         body {
-            background-color: var(--bg-primary);
-            color: var(--text-primary);
-            padding: 24px;
-            line-height: 1.5;
+            margin: 0;
+            background: radial-gradient(ellipse at top, #14213b, var(--bg) 55%);
+            color: var(--text);
+            font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            min-height: 100vh;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
+        main {
+            max-width: 1280px;
+            margin: auto;
+            padding: 24px 20px 48px;
         }
 
         /* Top Header */
-        header {
+        .top {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+            background: linear-gradient(120deg, #17243d, #11192a);
+            border: 1px solid var(--line);
+            padding: 24px;
+            border-radius: 20px;
+        }
+
+        h1 {
+            font-size: clamp(22px, 3.5vw, 32px);
+            margin: 0 0 6px;
+            letter-spacing: -.6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .sub,
+        .muted {
+            color: var(--muted);
+        }
+
+        .sub {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .target-meta {
+            font-size: 13px;
+            color: var(--muted);
+            margin-top: 6px;
+            line-height: 1.5;
+        }
+
+        .target-meta strong {
+            color: #d2e4ff;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid #34506d;
+            border-radius: 999px;
+            padding: 7px 14px;
+            color: #b7dcff;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .7px;
+            background: #14223a;
+        }
+
+        .pill.crit {
+            border-color: rgba(255, 107, 120, 0.5);
+            color: var(--red);
+            background: rgba(255, 107, 120, 0.12);
+        }
+
+        .pill.warn {
+            border-color: rgba(255, 173, 102, 0.5);
+            color: var(--orange);
+            background: rgba(255, 173, 102, 0.12);
+        }
+
+        .pill.pass {
+            border-color: rgba(120, 221, 176, 0.5);
+            color: var(--green);
+            background: rgba(120, 221, 176, 0.12);
+        }
+
+        /* Upload Report Section */
+        .upload-section {
+            background: rgba(18, 26, 45, 0.95);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 18px 22px;
+            margin-top: 18px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        }
+
+        .upload-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 20px;
-            background: var(--bg-card);
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            margin-bottom: 24px;
+            gap: 16px;
+            flex-wrap: wrap;
         }
 
-        .header-title h1 {
-            font-size: 24px;
+        .upload-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            flex: 1;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #1d4ed8, #2563eb);
+            color: #ffffff;
+            border: 1px solid #3b82f6;
+            border-radius: 10px;
+            padding: 10px 18px;
+            font-size: 13.5px;
             font-weight: 700;
-            color: var(--text-primary);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+            user-select: none;
+        }
+
+        .upload-btn:hover {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            border-color: #60a5fa;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.5);
+        }
+
+        .upload-btn:active {
+            transform: translateY(0);
+        }
+
+        input[type=file] {
+            display: none;
+        }
+
+        .file-info-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(11, 16, 32, 0.7);
+            border: 1px solid var(--line);
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            color: var(--muted);
+            flex-wrap: wrap;
+        }
+
+        .file-status-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #64748b;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        .file-status-dot.active {
+            background: var(--green);
+            box-shadow: 0 0 10px var(--green);
+        }
+
+        .file-status-tag {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            padding: 2px 8px;
+            border-radius: 6px;
+            background: #1e293b;
+            color: #94a3b8;
+            border: 1px solid #334155;
+        }
+
+        .file-status-tag.loaded {
+            background: rgba(120, 221, 176, 0.15);
+            color: var(--green);
+            border-color: rgba(120, 221, 176, 0.4);
+        }
+
+        .file-name-highlight {
+            color: #edf3ff;
+            font-weight: 700;
+            font-family: ui-monospace, Consolas, monospace;
+        }
+
+        .upload-bar-right {
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
-        .badge-live {
-            background: rgba(34, 197, 94, 0.2);
-            color: var(--accent-pass);
-            border: 1px solid var(--accent-pass);
-            font-size: 12px;
-            padding: 3px 8px;
-            border-radius: 20px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            font-weight: 600;
+        button {
+            font: inherit;
         }
 
-        .header-title p {
-            font-size: 14px;
-            color: var(--text-secondary);
-            margin-top: 4px;
-        }
-
-        .header-meta {
-            text-align: right;
+        .btn {
+            background: #1d3557;
+            color: var(--text);
+            border: 1px solid #3c5a7c;
+            border-radius: 10px;
+            padding: 9px 14px;
             font-size: 13px;
-            color: var(--text-secondary);
+            font-weight: 650;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s ease;
         }
 
-        .header-meta span {
-            color: var(--accent-blue);
-            font-weight: 600;
+        .btn:hover:not(:disabled) {
+            background: #27456e;
+            border-color: #557ba6;
         }
 
-        /* Metrics Row */
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 16px;
-            margin-bottom: 24px;
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            border-color: #27334b;
         }
 
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
+        .btn-ghost {
+            background: transparent;
+            border-color: var(--line);
+            color: var(--muted);
+        }
+
+        .btn-ghost:hover {
+            color: var(--red);
+            border-color: rgba(255, 107, 120, 0.4);
+            background: rgba(255, 107, 120, 0.08);
+        }
+
+        /* Error Notification Banner */
+        .error-banner {
+            margin-top: 14px;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            border-radius: 10px;
+            padding: 12px 16px;
             display: flex;
-            flex-direction: column;
             justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            animation: fadeIn 0.2s ease;
         }
 
-        .card-title {
-            font-size: 13px;
-            font-weight: 600;
-            text-transform: uppercase;
-            color: var(--text-secondary);
-            letter-spacing: 0.5px;
-        }
-
-        .card-value {
-            font-size: 36px;
-            font-weight: 800;
-            margin: 10px 0 4px;
-        }
-
-        .crit-val { color: var(--accent-crit); }
-        .high-val { color: var(--accent-high); }
-        .med-val { color: var(--accent-med); }
-        .total-val { color: var(--accent-blue); }
-
-        .card-caption {
-            font-size: 12px;
-            color: var(--text-secondary);
-        }
-
-        /* Table Section */
-        .section-title {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 14px;
+        .error-content {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 10px;
+            color: #fca5a5;
+            font-size: 13px;
+            line-height: 1.4;
         }
 
-        .table-container {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
+        .error-close-btn {
+            background: transparent;
+            border: none;
+            color: #fca5a5;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .error-close-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ffffff;
+        }
+
+        /* Metric Cards */
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(110px, 1fr));
+            gap: 12px;
+            margin: 18px 0;
+        }
+
+        .card,
+        .panel {
+            background: rgba(18, 26, 45, .92);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 18px;
+        }
+
+        .label {
+            font-size: 12px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: .8px;
+            font-weight: 700;
+        }
+
+        .number {
+            font-size: 34px;
+            font-weight: 800;
+            margin-top: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .critical { color: var(--red); }
+        .high { color: var(--orange); }
+        .medium { color: var(--yellow); }
+        .low { color: var(--green); }
+        .info { color: var(--blue); }
+
+        .panel {
+            margin-top: 16px;
+        }
+
+        .panelhead {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+
+        h2 {
+            font-size: 18px;
+            margin: 0;
+        }
+
+        /* Severity distribution chart */
+        .severity-chart {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding: 8px 0;
+        }
+
+        .severity-row {
+            display: grid;
+            grid-template-columns: 85px minmax(60px, 1fr) 35px;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .severity-row>span {
+            color: var(--muted);
+            font-weight: 650;
+            font-size: 13px;
+        }
+
+        .severity-row strong {
+            text-align: right;
+            font-size: 15px;
+        }
+
+        .severity-track {
+            height: 12px;
+            background: #202b40;
+            border-radius: 20px;
             overflow: hidden;
         }
 
+        .severity-fill {
+            width: 0%;
+            height: 100%;
+            border-radius: 20px;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .fill-critical { background: var(--red); }
+        .fill-high { background: var(--orange); }
+        .fill-medium { background: var(--yellow); }
+        .fill-low { background: var(--green); }
+        .fill-info { background: var(--blue); }
+
+        /* Findings Table & Filters */
+        .filters {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .filters input,
+        .filters select {
+            background: #0b1222;
+            color: var(--text);
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            padding: 9px 12px;
+            font: inherit;
+            font-size: 13px;
+        }
+
+        .filters input:disabled,
+        .filters select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .tablewrap {
+            overflow: auto;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+        }
+
         table {
-            width: 100%;
             border-collapse: collapse;
+            width: 100%;
+            min-width: 900px;
             text-align: left;
-            font-size: 14px;
         }
 
-        thead {
-            background: #182234;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        th {
-            padding: 14px 16px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            font-size: 12px;
-            letter-spacing: 0.5px;
-        }
-
+        th,
         td {
-            padding: 14px 16px;
-            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+            padding: 13px 14px;
+            border-bottom: 1px solid var(--line);
             vertical-align: top;
         }
 
+        th {
+            background: #18243a;
+            color: #b6c5dd;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .7px;
+        }
+
         tr:last-child td {
-            border-bottom: none;
+            border-bottom: 0;
         }
 
-        tr:hover {
-            background-color: rgba(255, 255, 255, 0.02);
+        tbody tr:hover {
+            background: #ffffff07;
         }
 
-        /* Severity Tags */
         .tag {
             display: inline-block;
-            padding: 4px 10px;
             border-radius: 6px;
+            padding: 3px 8px;
             font-size: 11px;
-            font-weight: 700;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
-        .tag-critical {
-            background: rgba(239, 68, 68, 0.15);
-            color: #f87171;
-            border: 1px solid rgba(239, 68, 68, 0.4);
+        .tag.Critical { background: #612c3a; color: #ff9eaa; }
+        .tag.High { background: #5c3b28; color: #ffc18c; }
+        .tag.Medium { background: #544a25; color: #f5df8d; }
+        .tag.Low { background: #214b3c; color: #a5f0cb; }
+        .tag.Info { background: #1c4160; color: #b7dcff; }
+
+        .finding {
+            font-weight: 750;
         }
 
-        .tag-high {
-            background: rgba(249, 115, 22, 0.15);
-            color: #fb923c;
-            border: 1px solid rgba(249, 115, 22, 0.4);
+        .evidence {
+            font: 12px ui-monospace, Consolas, monospace;
+            color: #b7dcff;
+            background: rgba(9, 13, 22, 0.6);
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(56, 189, 248, 0.15);
+            overflow-wrap: anywhere;
+            margin-top: 6px;
         }
 
-        .tag-medium {
-            background: rgba(234, 179, 8, 0.15);
-            color: #facc15;
-            border: 1px solid rgba(234, 179, 8, 0.4);
-        }
-
-        .code-pill {
-            background: #090d16;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 12px;
-            color: var(--accent-blue);
-            border: 1px solid rgba(56, 189, 248, 0.2);
-        }
-
-        .remediation-box {
+        .remed-box {
             font-size: 12px;
             color: #cbd5e1;
-            background: rgba(15, 23, 42, 0.6);
-            padding: 8px 10px;
+            background: rgba(15, 23, 42, 0.5);
+            padding: 6px 10px;
             border-radius: 6px;
-            border-left: 3px solid var(--accent-blue);
+            border-left: 3px solid var(--blue);
             margin-top: 4px;
         }
 
-        /* Footer */
-        footer {
-            margin-top: 24px;
+        .empty {
+            padding: 42px 24px;
             text-align: center;
+            color: var(--muted);
+        }
+
+        .notice {
+            border-left: 3px solid var(--blue);
+            background: #14223a;
+            padding: 12px 14px;
+            border-radius: 8px;
+            color: #c6d8f2;
+            font-size: 13px;
+            margin-top: 14px;
+        }
+
+        /* Footer */
+        .foot {
+            margin-top: 26px;
+            padding-top: 16px;
+            border-top: 1px solid var(--line);
+            text-align: center;
+            color: var(--muted);
             font-size: 12px;
-            color: var(--text-secondary);
+            line-height: 1.8;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media(max-width:960px) {
+            .cards {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        @media(max-width:640px) {
+            .cards {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            main {
+                padding: 16px 12px 32px;
+            }
+
+            .top {
+                padding: 18px;
+            }
+
+            .upload-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .upload-bar-left {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .upload-btn {
+                justify-content: center;
+            }
+
+            .file-info-badge {
+                min-width: unset;
+            }
         }
     </style>
 </head>
+
 <body>
+    <main>
+        <!-- Top Header -->
+        <section class="top">
+            <div>
+                <h1>🛡️ Android Security Assessment Portal</h1>
+                <p class="sub">Static Application Security Testing (SAST) – Multi-Phase Audit Dashboard</p>
+                <p class="target-meta" id="targetMeta">Target: <strong id="targetAppText">No report loaded</strong></p>
+            </div>
+            <div>
+                <span class="pill" id="status">Awaiting Scan Report</span>
+                <p class="muted" id="meta" style="margin-top:8px;max-width:320px;font-size:12px;">
+                    Upload a JSON scan report to view analysis
+                </p>
+            </div>
+        </section>
 
-    <div class="container">
-        <!-- Top Navigation / Header -->
-        <header>
-            <div class="header-title">
-                <h1>
-                    <span>🛡️ Android Security Assessment Portal</span>
-                    <span class="badge-live">Scan Completed</span>
-                </h1>
-                <p>Static Application Security Testing (SAST) Audit &bullet; Target: <strong>InsecureBankv2</strong></p>
-            </div>
-            <div class="header-meta">
-                Standard: <span>OWASP MASVS / Top 5</span><br>
-                Engine: <span>PowerShell AST Static Scanner v1.0</span><br>
-                Status: <span style="color: var(--accent-crit);">Audit Failed (Action Required)</span>
-            </div>
-        </header>
+        <!-- Single Upload Scan Report Section -->
+        <section class="upload-section">
+            <div class="upload-bar">
+                <div class="upload-bar-left">
+                    <label class="upload-btn" for="reportFile" id="uploadLabel">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <span>Upload Scan Report</span>
+                    </label>
+                    <input id="reportFile" type="file" accept=".json,application/json">
 
-        <!-- Metrics Dashboard -->
-        <div class="metrics-grid">
+                    <div class="file-info-badge">
+                        <span class="file-status-dot" id="fileStatusDot"></span>
+                        <span class="file-status-tag" id="fileStatusTag">No Report Loaded</span>
+                        <span id="fileNameText">Select a scan report JSON file from your computer (e.g. scan_report.json)</span>
+                    </div>
+                </div>
+
+                <div class="upload-bar-right">
+                    <button class="btn" id="csvBtn" type="button" onclick="exportCSV()" disabled title="Export loaded findings to CSV">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        <span>Export CSV</span>
+                    </button>
+                    <button class="btn btn-ghost" id="clearBtn" type="button" onclick="clearCurrentReport()" style="display:none;" title="Clear loaded report">
+                        ✕ Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Error Banner (Hidden by default, displayed on invalid JSON or file errors) -->
+            <div id="errorBanner" class="error-banner" style="display: none;">
+                <div class="error-content">
+                    <span style="font-size:16px;">⚠️</span>
+                    <span id="errorMessage" class="error-text"></span>
+                </div>
+                <button type="button" class="error-close-btn" onclick="dismissError()" title="Dismiss message">✕</button>
+            </div>
+        </section>
+
+        <!-- Metric Cards: Total, Critical, High, Medium, Low, Info -->
+        <section class="cards" aria-label="Severity summary">
             <div class="card">
-                <span class="card-title">Total Vulnerabilities</span>
-                <span class="card-value total-val">9</span>
-                <span class="card-caption">All detected flaws mapped to OWASP</span>
+                <div class="label">Total findings</div>
+                <div class="number" id="total" style="color: var(--blue);">—</div>
             </div>
             <div class="card">
-                <span class="card-title">Critical Severity</span>
-                <span class="card-value crit-val">2</span>
-                <span class="card-caption">Authentication & Network leaks</span>
+                <div class="label">Critical</div>
+                <div class="number critical" id="Critical">—</div>
             </div>
             <div class="card">
-                <span class="card-title">High Severity</span>
-                <span class="card-value high-val">3</span>
-                <span class="card-caption">MD5 hash & Hardcoded crypto keys</span>
+                <div class="label">High</div>
+                <div class="number high" id="High">—</div>
             </div>
             <div class="card">
-                <span class="card-title">Medium Severity</span>
-                <span class="card-value med-val">4</span>
-                <span class="card-caption">Exported activities & Logcat leakage</span>
+                <div class="label">Medium</div>
+                <div class="number medium" id="Medium">—</div>
             </div>
+            <div class="card">
+                <div class="label">Low</div>
+                <div class="number low" id="Low">—</div>
+            </div>
+            <div class="card">
+                <div class="label">Info</div>
+                <div class="number info" id="Info">—</div>
+            </div>
+        </section>
+
+        <!-- Severity Distribution Chart -->
+        <section class="panel" id="severityPanel">
+            <div class="panelhead">
+                <h2>Severity Distribution</h2>
+                <span class="muted" id="chartSubtitle">Findings breakdown by severity level</span>
+            </div>
+
+            <div class="severity-chart">
+                <div class="severity-row">
+                    <span>Critical</span>
+                    <div class="severity-track">
+                        <div id="barCritical" class="severity-fill fill-critical"></div>
+                    </div>
+                    <strong id="chartCritical">0</strong>
+                </div>
+
+                <div class="severity-row">
+                    <span>High</span>
+                    <div class="severity-track">
+                        <div id="barHigh" class="severity-fill fill-high"></div>
+                    </div>
+                    <strong id="chartHigh">0</strong>
+                </div>
+
+                <div class="severity-row">
+                    <span>Medium</span>
+                    <div class="severity-track">
+                        <div id="barMedium" class="severity-fill fill-medium"></div>
+                    </div>
+                    <strong id="chartMedium">0</strong>
+                </div>
+
+                <div class="severity-row">
+                    <span>Low</span>
+                    <div class="severity-track">
+                        <div id="barLow" class="severity-fill fill-low"></div>
+                    </div>
+                    <strong id="chartLow">0</strong>
+                </div>
+
+                <div class="severity-row">
+                    <span>Info</span>
+                    <div class="severity-track">
+                        <div id="barInfo" class="severity-fill fill-info"></div>
+                    </div>
+                    <strong id="chartInfo">0</strong>
+                </div>
+            </div>
+        </section>
+
+        <!-- Findings Register Data Table -->
+        <section class="panel">
+            <div class="panelhead">
+                <div>
+                    <h2 id="tableHeading">Findings Register</h2>
+                    <span class="muted" id="activeReportIndicator" style="font-size:12px;">No scan report uploaded</span>
+                </div>
+                <div class="filters">
+                    <input id="search" type="search" placeholder="Search findings, files, evidence…" aria-label="Search findings" disabled>
+                    <select id="severity" aria-label="Filter by severity" disabled>
+                        <option value="">All severities</option>
+                        <option>Critical</option>
+                        <option>High</option>
+                        <option>Medium</option>
+                        <option>Low</option>
+                        <option>Info</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="tablewrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 110px;">ID / Severity</th>
+                            <th style="width: 200px;">Finding & Category</th>
+                            <th style="width: 250px;">Location & Evidence</th>
+                            <th>Why it matters</th>
+                            <th>Recommended fix</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rows">
+                        <tr>
+                            <td colspan="5" class="empty">
+                                <div style="font-size: 16px; font-weight: 600; margin-bottom: 6px; color: #b7dcff;">📂 No Scan Report Loaded</div>
+                                <div style="font-size: 13px; color: var(--muted);">Click the <strong>Upload Scan Report</strong> button above to load and view a JSON report from your computer.</div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="notice" id="limits">
+                Pattern-based static analysis is a triage aid, not an exhaustive penetration test. Validate findings manually.
+            </div>
+        </section>
+
+        <div class="foot">
+            Android Application Penetration Testing & Vulnerability Assessment &bull; Automated SAST Assessment Portal
         </div>
+    </main>
 
-        <!-- Vulnerability Data Table -->
-        <div class="section-title">
-            <span>Detailed Vulnerability Findings (9 Issues)</span>
-            <span style="font-size: 13px; color: var(--text-secondary); font-weight: normal;">Click or inspect findings below</span>
-        </div>
+    <script>
+        // Active State - No Preloaded Reports or Hardcoded Findings
+        let currentReport = null;
+        let currentFileName = "";
 
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 60px;">ID</th>
-                        <th style="width: 110px;">Severity</th>
-                        <th style="width: 170px;">Category</th>
-                        <th>Vulnerability & Location</th>
-                        <th>Developer Remediation</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>#1</strong></td>
-                        <td><span class="tag tag-critical">Critical</span></td>
-                        <td><strong>M4 - Authentication</strong></td>
-                        <td>
-                            <strong>Hardcoded Admin Credentials in Logic</strong><br>
-                            <span class="code-pill">LoginActivity.java:29</span>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
-                                Static equality check <code>username.equals("admin")</code> allows direct bytecode bypass.
-                            </div>
-                        </td>
-                        <td>
-                            <div class="remediation-box">
-                                Delegate user authentication to a secure backend API. Never embed plaintext credentials into client-side bytecode.
-                            </div>
-                        </td>
-                    </tr>
+        const $ = id => document.getElementById(id);
+        function esc(v) {
+            return String(v ?? "").replace(/[&<>"']/g, c => ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;"
+            }[c]));
+        }
 
-                    <tr>
-                        <td><strong>#2</strong></td>
-                        <td><span class="tag tag-critical">Critical</span></td>
-                        <td><strong>M3 - Insecure Comm.</strong></td>
-                        <td>
-                            <strong>Cleartext HTTP Traffic Permitted</strong><br>
-                            <span class="code-pill">AndroidManifest.xml</span>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
-                                <code>android:usesCleartextTraffic="true"</code> allows unencrypted HTTP requests.
-                            </div>
-                        </td>
-                        <td>
-                            <div class="remediation-box">
-                                Set <code>usesCleartextTraffic="false"</code> and configure <code>network_security_config.xml</code> to mandate TLS 1.3.
-                            </div>
-                        </td>
-                    </tr>
+        function showError(msg) {
+            const banner = $("errorBanner");
+            const text = $("errorMessage");
+            text.textContent = msg;
+            banner.style.display = "flex";
+        }
 
-                    <tr>
-                        <td><strong>#3</strong></td>
-                        <td><span class="tag tag-high">High</span></td>
-                        <td><strong>M5 - Cryptography</strong></td>
-                        <td>
-                            <strong>Insecure MD5 Hash Algorithm</strong><br>
-                            <span class="code-pill">CryptoClass.java:18</span>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
-                                <code>MessageDigest.getInstance("MD5")</code> is cryptographically broken and vulnerable to rainbow tables.
-                            </div>
-                        </td>
-                        <td>
-                            <div class="remediation-box">
-                                Upgrade to SHA-256 for cryptographic signatures or PBKDF2/Argon2 for password hashing.
-                            </div>
-                        </td>
-                    </tr>
+        function dismissError() {
+            const banner = $("errorBanner");
+            banner.style.display = "none";
+        }
 
-                    <tr>
-                        <td><strong>#4</strong></td>
-                        <td><span class="tag tag-high">High</span></td>
-                        <td><strong>M5 - Cryptography</strong></td>
-                        <td>
-                            <strong>Hardcoded Symmetric Encryption Key</strong><br>
-                            <span class="code-pill">CryptoClass.java:11</span>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
-                                Static key <code>"1234567890123456"</code> visible in plaintext bytecode.
-                            </div>
-                        </td>
-                        <td>
-                            <div class="remediation-box">
-                                Generate random keys managed within the hardware-backed <strong>Android KeyStore</strong> provider.
-                            </div>
-                        </td>
-                    </tr>
+        // Handle Report JSON File Upload
+        $("reportFile").addEventListener("change", async (event) => {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
 
-                    <tr>
-                        <td><strong>#5</strong></td>
-                        <td><span class="tag tag-high">High</span></td>
-                        <td><strong>M1 - Platform Usage</strong></td>
-                        <td>
-                            <strong>Application is Debuggable</strong><br>
-                            <span class="code-pill">AndroidManifest.xml</span>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
-                                <code>android:debuggable="true"</code> allows runtime debugger attachment and memory dumping.
-                            </div>
-                        </td>
-                        <td>
-                            <div class="remediation-box">
-                                Set <code>android:debuggable="false"</code> across all production release build variants.
-                            </div>
-                        </td>
-                    </tr>
+            const fileName = file.name;
+            dismissError();
 
-                    <tr>
-                        <td><strong>#6</strong></td>
-                        <td><span class="tag tag-medium">Medium</span></td>
-                        <td><strong>M1 - Platform Usage</strong></td>
-                        <td>
-                            <strong>Exported Admin Activity (.AdminPanel)</strong><br>
-                            <span class="code-pill">AndroidManifest.xml</span>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
-                                <code>android:exported="true"</code> exposes the admin screen to any unauthorized app on device.
-                            </div>
-                        </td>
-                        <td>
-                            <div class="remediation-box">
-                                Set <code>android:exported="false"</code> or require custom signature-level permissions.
-                            </div>
-                        </td>
-                    </tr>
+            try {
+                // Verify file type / extension
+                if (!fileName.toLowerCase().endsWith(".json") && file.type && !file.type.includes("json")) {
+                    throw new Error(`File "${fileName}" does not appear to be a JSON file. Please select a valid .json scan report.`);
+                }
 
-                    <tr>
-                        <td><strong>#7</strong></td>
-                        <td><span class="tag tag-medium">Medium</span></td>
-                        <td><strong>M2 - Insecure Storage</strong></td>
-                        <td>
-                            <strong>Application Allows Data Backup</strong><br>
-                            <span class="code-pill">AndroidManifest.xml</span>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
-                                <code>android:allowBackup="true"</code> enables full sandbox extraction via <code>adb backup</code>.
-                            </div>
-                        </td>
-                        <td>
-                            <div class="remediation-box">
-                                Explicitly set <code>android:allowBackup="false"</code> to protect local application sandbox data.
-                            </div>
-                        </td>
-                    </tr>
+                const fileContent = await file.text();
+                if (!fileContent.trim()) {
+                    throw new Error(`The file "${fileName}" is empty. Please upload a report with scan findings.`);
+                }
 
-                    <tr>
-                        <td><strong>#8</strong></td>
-                        <td><span class="tag tag-medium">Medium</span></td>
-                        <td><strong>M2 - Insecure Storage</strong></td>
-                        <td>
-                            <strong>Sensitive Credentials Leaked in Logcat</strong><br>
-                            <span class="code-pill">LoginActivity.java:26</span>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
-                                <code>Log.d(...)</code> writes plain credentials to Android system logs.
-                            </div>
-                        </td>
-                        <td>
-                            <div class="remediation-box">
-                                Strip all debug logging statements in production builds using ProGuard/R8 rules.
-                            </div>
-                        </td>
-                    </tr>
+                let parsed;
+                try {
+                    parsed = JSON.parse(fileContent);
+                } catch (jsonErr) {
+                    throw new Error(`Invalid JSON syntax in "${fileName}": ${jsonErr.message}. Please check that the file is correctly formatted.`);
+                }
 
-                    <tr>
-                        <td><strong>#9</strong></td>
-                        <td><span class="tag tag-medium">Medium</span></td>
-                        <td><strong>M3 - Insecure Comm.</strong></td>
-                        <td>
-                            <strong>Unencrypted HTTP URL Endpoint</strong><br>
-                            <span class="code-pill">LoginActivity.java:13</span>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
-                                Hardcoded endpoint uses <code>http://</code> making requests susceptible to MITM sniffing.
-                            </div>
-                        </td>
-                        <td>
-                            <div class="remediation-box">
-                                Change all network endpoints to strictly use <code>https://</code> with trusted SSL/TLS certificates.
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+                if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+                    throw new Error(`The file "${fileName}" does not contain a valid JSON report object.`);
+                }
 
-        <footer>
-            Academic Project Deliverable &bull; Android Application Penetration Testing &bull; Aligned with OWASP Mobile Top 5 & MASVS
-        </footer>
-    </div>
+                if (!Array.isArray(parsed.findings)) {
+                    throw new Error(`Invalid scan report structure in "${fileName}". Missing expected "findings" array. Please ensure the file was generated by android_security_scanner.py.`);
+                }
 
+                // Load and display actual findings from the uploaded JSON file
+                loadReport(parsed, fileName);
+
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                // Clear input value so selecting the same file again triggers change event
+                event.target.value = "";
+            }
+        });
+
+        // Load and Display Uploaded Report Data
+        function loadReport(data, fileName) {
+            currentReport = data;
+            currentFileName = fileName;
+
+            // Enable search, filter, and export controls
+            $("search").disabled = false;
+            $("severity").disabled = false;
+            $("csvBtn").disabled = false;
+            $("clearBtn").style.display = "inline-flex";
+
+            // Update upload status and filename display
+            $("fileStatusDot").classList.add("active");
+            $("fileStatusTag").textContent = "Report Loaded";
+            $("fileStatusTag").className = "file-status-tag loaded";
+            $("fileNameText").innerHTML = `File: <span class="file-name-highlight">${esc(fileName)}</span> &bull; <strong>${data.findings.length}</strong> findings identified`;
+
+            // Update Top Header target metadata
+            const targetApp = data.target || "target_app";
+            $("targetAppText").textContent = targetApp;
+            const timeStr = data.generated_at_utc ? `${data.generated_at_utc}` : "Timestamp unavailable";
+            $("meta").textContent = `${targetApp} • ${timeStr}`;
+
+            // Calculate Genuine Severity Counts from findings array
+            const counts = { "Critical": 0, "High": 0, "Medium": 0, "Low": 0, "Info": 0 };
+            data.findings.forEach(f => {
+                const s = f.severity || "Info";
+                if (counts[s] !== undefined) {
+                    counts[s]++;
+                } else {
+                    counts["Info"]++;
+                }
+            });
+
+            // Update Audit Status Badge dynamically
+            const statusEl = $("status");
+            if (counts.Critical > 0) {
+                statusEl.className = "pill crit";
+                statusEl.textContent = "Audit Failed (Critical Issues Found)";
+            } else if (counts.High > 0) {
+                statusEl.className = "pill warn";
+                statusEl.textContent = "Remediation in Progress (High Issues Found)";
+            } else if (counts.Medium > 0) {
+                statusEl.className = "pill warn";
+                statusEl.textContent = "Review Required (Medium Issues Found)";
+            } else if (data.findings.length > 0) {
+                statusEl.className = "pill pass";
+                statusEl.textContent = "Audit Passed (No High/Critical Flaws)";
+            } else {
+                statusEl.className = "pill pass";
+                statusEl.textContent = "Audit Passed (0 Findings)";
+            }
+
+            // Update Metric Cards
+            $("total").textContent = data.findings.length;
+            $("Critical").textContent = counts.Critical;
+            $("High").textContent = counts.High;
+            $("Medium").textContent = counts.Medium;
+            $("Low").textContent = counts.Low;
+            $("Info").textContent = counts.Info;
+
+            // Update Severity Distribution Chart
+            const chartItems = [
+                ["Critical", "barCritical", "chartCritical"],
+                ["High", "barHigh", "chartHigh"],
+                ["Medium", "barMedium", "chartMedium"],
+                ["Low", "barLow", "chartLow"],
+                ["Info", "barInfo", "chartInfo"]
+            ];
+
+            const totalCount = data.findings.length;
+            chartItems.forEach(([sev, barId, countId]) => {
+                const count = counts[sev];
+                const pct = totalCount > 0 ? (count / totalCount) * 100 : 0;
+                $(countId).textContent = count;
+                $(barId).style.width = pct + "%";
+            });
+
+            // Update Findings Register Header
+            $("tableHeading").textContent = `Findings Register (${esc(fileName)})`;
+            $("activeReportIndicator").textContent = `Viewing ${data.findings.length} genuine findings from ${esc(fileName)}`;
+
+            // Update Limitations if present
+            if (data.limitations) {
+                $("limits").textContent = data.limitations;
+            }
+
+            // Render Findings Table
+            renderTable();
+        }
+
+        // Filter and Render Findings Table
+        function renderTable() {
+            if (!currentReport) return;
+
+            const q = $("search").value.trim().toLowerCase();
+            const sev = $("severity").value;
+
+            const items = currentReport.findings.filter(f => {
+                const matchSev = !sev || f.severity === sev;
+                const matchSearch = !q || JSON.stringify(f).toLowerCase().includes(q);
+                return matchSev && matchSearch;
+            });
+
+            const rowsEl = $("rows");
+            if (items.length === 0) {
+                rowsEl.innerHTML = `<tr><td colspan="5" class="empty">No findings match the selected filters in "${esc(currentFileName)}".</td></tr>`;
+                return;
+            }
+
+            rowsEl.innerHTML = items.map(f => `
+                <tr>
+                    <td>
+                        <strong>${esc(f.id || "—")}</strong><br>
+                        <span class="tag ${esc(f.severity || "Info")}">${esc(f.severity || "Info")}</span>
+                    </td>
+                    <td>
+                        <div class="finding">${esc(f.title || "Untitled Finding")}</div>
+                        <div class="muted">${esc(f.category || "General")}</div>
+                    </td>
+                    <td>
+                        <div><strong>${esc(f.file || "—")}</strong>${f.line ? ":" + esc(f.line) : ""}</div>
+                        <div class="evidence"><code>${esc(f.evidence || "No snippet")}</code></div>
+                    </td>
+                    <td>
+                        <div style="font-size:13px;color:#cdd7e5;">${esc(f.description || "—")}</div>
+                    </td>
+                    <td>
+                        <div class="remed-box">${esc(f.remediation || "—")}</div>
+                    </td>
+                </tr>
+            `).join("");
+        }
+
+        // Clear Current Report
+        function clearCurrentReport() {
+            currentReport = null;
+            currentFileName = "";
+            dismissError();
+
+            // Reset controls
+            $("search").value = "";
+            $("severity").value = "";
+            $("search").disabled = true;
+            $("severity").disabled = true;
+            $("csvBtn").disabled = true;
+            $("clearBtn").style.display = "none";
+
+            // Reset upload bar
+            $("fileStatusDot").classList.remove("active");
+            $("fileStatusTag").textContent = "No Report Loaded";
+            $("fileStatusTag").className = "file-status-tag";
+            $("fileNameText").textContent = "Select a scan report JSON file from your computer (e.g. scan_report.json)";
+
+            // Reset top header
+            $("targetAppText").textContent = "No report loaded";
+            $("status").className = "pill";
+            $("status").textContent = "Awaiting Scan Report";
+            $("meta").textContent = "Upload a JSON scan report to view analysis";
+
+            // Reset cards
+            $("total").textContent = "—";
+            $("Critical").textContent = "—";
+            $("High").textContent = "—";
+            $("Medium").textContent = "—";
+            $("Low").textContent = "—";
+            $("Info").textContent = "—";
+
+            // Reset chart
+            ["Critical", "High", "Medium", "Low", "Info"].forEach(s => {
+                $(`chart${s}`).textContent = "0";
+                $(`bar${s}`).style.width = "0%";
+            });
+
+            // Reset table
+            $("tableHeading").textContent = "Findings Register";
+            $("activeReportIndicator").textContent = "No scan report uploaded";
+            $("rows").innerHTML = `
+                <tr>
+                    <td colspan="5" class="empty">
+                        <div style="font-size: 16px; font-weight: 600; margin-bottom: 6px; color: #b7dcff;">📂 No Scan Report Loaded</div>
+                        <div style="font-size: 13px; color: var(--muted);">Click the <strong>Upload Scan Report</strong> button above to load and view a JSON report from your computer.</div>
+                    </td>
+                </tr>
+            `;
+            $("limits").textContent = "Pattern-based static analysis is a triage aid, not an exhaustive penetration test. Validate findings manually.";
+        }
+
+        // Export Active Report as CSV
+        function exportCSV() {
+            if (!currentReport || !Array.isArray(currentReport.findings)) return;
+
+            const q = $("search").value.trim().toLowerCase();
+            const sev = $("severity").value;
+            const items = currentReport.findings.filter(f => (!sev || f.severity === sev) && (!q || JSON.stringify(f).toLowerCase().includes(q)));
+
+            const cols = ["id", "severity", "category", "title", "file", "line", "evidence", "description", "remediation"];
+            const quote = v => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+            const csv = [cols.join(","), ...items.map(f => cols.map(c => quote(f[c])).join(","))].join("\r\n");
+
+            const baseName = currentFileName ? currentFileName.replace(/\.json$/i, "") : "scan-report";
+            const filename = `${baseName}-findings.csv`;
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        // Filter event listeners
+        $("search").addEventListener("input", renderTable);
+        $("severity").addEventListener("change", renderTable);
+
+        // Initialize clean empty state
+        clearCurrentReport();
+    </script>
 </body>
+
 </html>

@@ -1,0 +1,172 @@
+{
+  "tool": "Android Static Security Scanner",
+  "version": "2.0",
+  "scan_type": "Static pattern analysis",
+  "target": "target_app",
+  "generated_at_utc": "2026-11-03T05:08:16.376614+00:00",
+  "limitations": "Pattern-based triage only. Findings require manual validation; absence of findings does not prove security.",
+  "total_findings": 14,
+  "severity_counts": {
+    "Critical": 1,
+    "High": 7,
+    "Medium": 5,
+    "Low": 0,
+    "Info": 1
+  },
+  "findings": [
+    {
+      "id": "F001",
+      "category": "Android Manifest",
+      "title": "Application is debuggable",
+      "severity": "High",
+      "file": "AndroidManifest.xml",
+      "line": 14,
+      "evidence": "android:debuggable=\"true\"",
+      "description": "Debug builds can expose runtime state and facilitate instrumentation.",
+      "remediation": "Set android:debuggable=\"false\" in release builds."
+    },
+    {
+      "id": "F002",
+      "category": "Android Manifest",
+      "title": "Application backup is enabled",
+      "severity": "Medium",
+      "file": "AndroidManifest.xml",
+      "line": 13,
+      "evidence": "android:allowBackup=\"true\"",
+      "description": "Backups may expose app data depending on Android version and backup configuration.",
+      "remediation": "Review backup rules and set android:allowBackup=\"false\" when backups are not required."
+    },
+    {
+      "id": "F003",
+      "category": "Android Manifest",
+      "title": "Cleartext network traffic is permitted",
+      "severity": "High",
+      "file": "AndroidManifest.xml",
+      "line": 15,
+      "evidence": "android:usesCleartextTraffic=\"true\"",
+      "description": "The app permits HTTP traffic, which can expose data to network interception.",
+      "remediation": "Set android:usesCleartextTraffic=\"false\" and use HTTPS for all endpoints."
+    },
+    {
+      "id": "F004",
+      "category": "Excessive Permissions",
+      "title": "Sensitive permission requested: android.permission.WRITE_EXTERNAL_STORAGE",
+      "severity": "Medium",
+      "file": "AndroidManifest.xml",
+      "line": 9,
+      "evidence": "android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\"",
+      "description": "This permission is sensitive or broad and should be justified by a clear feature need.",
+      "remediation": "Remove unused permissions and request the minimum permissions required."
+    },
+    {
+      "id": "F005",
+      "category": "Excessive Permissions",
+      "title": "Sensitive permission requested: android.permission.READ_SMS",
+      "severity": "Medium",
+      "file": "AndroidManifest.xml",
+      "line": 10,
+      "evidence": "android:name=\"android.permission.READ_SMS\"",
+      "description": "This permission is sensitive or broad and should be justified by a clear feature need.",
+      "remediation": "Remove unused permissions and request the minimum permissions required."
+    },
+    {
+      "id": "F006",
+      "category": "Android Manifest",
+      "title": "Exported activity: .AdminPanel",
+      "severity": "Medium",
+      "file": "AndroidManifest.xml",
+      "line": 37,
+      "evidence": ".AdminPanel, android:exported='true'",
+      "description": "An exported component may be reachable by other apps; access controls must be checked.",
+      "remediation": "Set android:exported=\"false\" if external access is not needed, or protect it with appropriate permissions."
+    },
+    {
+      "id": "F007",
+      "category": "M5 - Insufficient Cryptography",
+      "title": "Potential hardcoded key or secret",
+      "severity": "High",
+      "file": "src\\com\\android\\insecurebankv2\\CryptoClass.java",
+      "line": 11,
+      "evidence": "private static final String STATIC_KEY = \"1234567890123456\";",
+      "description": "A constant resembling a cryptographic key or secret appears in source code.",
+      "remediation": "Do not embed reusable secrets in client apps; use server-side secret management or Android Keystore for device-held keys."
+    },
+    {
+      "id": "F008",
+      "category": "M5 - Insufficient Cryptography",
+      "title": "Weak hash algorithm",
+      "severity": "High",
+      "file": "src\\com\\android\\insecurebankv2\\CryptoClass.java",
+      "line": 18,
+      "evidence": "MessageDigest md = MessageDigest.getInstance(\"MD5\");",
+      "description": "MD5 and SHA-1 are not suitable for modern security-sensitive hashing.",
+      "remediation": "For passwords, use a salted password KDF such as Argon2id, scrypt, bcrypt, or PBKDF2 with suitable parameters."
+    },
+    {
+      "id": "F009",
+      "category": "M5 - Insufficient Cryptography",
+      "title": "Weak cipher or ECB mode",
+      "severity": "High",
+      "file": "src\\com\\android\\insecurebankv2\\CryptoClass.java",
+      "line": 36,
+      "evidence": "Cipher cipher = Cipher.getInstance(\"DES\");",
+      "description": "DES is obsolete and ECB mode can reveal patterns in encrypted data.",
+      "remediation": "Use authenticated encryption such as AES-GCM with nonce management and platform-managed keys."
+    },
+    {
+      "id": "F010",
+      "category": "M3 - Insecure Communication",
+      "title": "HTTP endpoint in source",
+      "severity": "High",
+      "file": "src\\com\\android\\insecurebankv2\\LoginActivity.java",
+      "line": 13,
+      "evidence": "private static final String AUTH_ENDPOINT = \"http://insecurebank.local:8080/login\";",
+      "description": "An HTTP URL is not encrypted in transit and may expose requests or responses.",
+      "remediation": "Use HTTPS with valid certificate validation; disable cleartext traffic unless a documented exception is required."
+    },
+    {
+      "id": "F011",
+      "category": "M2 - Insecure Data Storage",
+      "title": "Sensitive data in logs",
+      "severity": "Medium",
+      "file": "src\\com\\android\\insecurebankv2\\LoginActivity.java",
+      "line": 26,
+      "evidence": "Log.d(TAG, \"Attempting authentication for user: \" + username + \" with password: \" + password);",
+      "description": "Logging authentication or secret-related data may expose it through device logs.",
+      "remediation": "Remove sensitive values from logs; avoid logging credentials and tokens in all builds."
+    },
+    {
+      "id": "F012",
+      "category": "M4 - Insecure Authentication",
+      "title": "Hardcoded credential check",
+      "severity": "Critical",
+      "file": "src\\com\\android\\insecurebankv2\\LoginActivity.java",
+      "line": 29,
+      "evidence": "if (username.equals(\"admin\") && password.equals(\"admin\")) {",
+      "description": "A known credential string is compared directly in client-side logic.",
+      "remediation": "Perform authentication and authorization on a trusted backend; never embed fixed user credentials in the app."
+    },
+    {
+      "id": "F013",
+      "category": "Review - Data Storage",
+      "title": "Use of SharedPreferences",
+      "severity": "Info",
+      "file": "src\\com\\android\\insecurebankv2\\LoginActivity.java",
+      "line": 40,
+      "evidence": "SharedPreferences pref = getSharedPreferences(\"credentials\", Context.MODE_PRIVATE);",
+      "description": "SharedPreferences is not automatically insecure, but sensitive values stored without encryption require review.",
+      "remediation": "Do not store passwords or long-lived tokens in plaintext preferences; use an appropriate secure storage design."
+    },
+    {
+      "id": "F014",
+      "category": "M2 - Insecure Data Storage",
+      "title": "Sensitive value written to preferences",
+      "severity": "High",
+      "file": "src\\com\\android\\insecurebankv2\\LoginActivity.java",
+      "line": 43,
+      "evidence": "editor.putString(\"password\", password); // Stored in cleartext in shared_prefs/credentials.xml",
+      "description": "A secret-like value is written to preferences; confirm whether it is encrypted and necessary.",
+      "remediation": "Avoid storing passwords. For tokens, use short lifetimes and platform-backed secure storage."
+    }
+  ]
+}

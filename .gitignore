@@ -15,3 +15,13 @@ $RECYCLE.BIN/
 .idea/
 *.suo
 *.user
+
+# Android Studio generated files
+.gradle/
+.idea/
+**/build/
+local.properties
+*.iml
+
+# Temporary files
+*.log

@@ -1,265 +1,215 @@
 #!/usr/bin/env python3
+"""Defensive static scanner for Android source trees and manifests.
+
+This tool reports suspicious patterns for manual review. It is not a full
+penetration test and does not prove exploitability.
+Usage: python android_security_scanner.py <target_directory>
 """
-Android Application Static Security Analyzer (SAST)
-Aligned with OWASP Mobile Top 10 & MASVS
-
-Description:
-    Automated vulnerability scanner for Android applications. Analyzes AndroidManifest.xml
-    and source files (Java/Kotlin) to identify high-risk security flaws including:
-    - M1: Improper Platform Usage (Exported components, debuggable flags)
-    - M2: Insecure Data Storage (Plaintext shared preferences, sensitive logs)
-    - M3: Insecure Communication (Cleartext HTTP traffic)
-    - M4: Insecure Authentication (Hardcoded credentials)
-    - M5: Insufficient Cryptography (Weak hashing like MD5, hardcoded encryption keys)
-
-Usage:
-    python android_security_scanner.py <path_to_app_directory>
-"""
-
-import os
-import sys
+import json
 import re
-import xml.etree.ElementTree as ET
+import sys
 from pathlib import Path
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
+
+ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
+SEVERITIES = ("Critical", "High", "Medium", "Low", "Info")
 
 class AndroidSecurityScanner:
     def __init__(self, target_dir):
-        self.target_dir = Path(target_dir)
+        self.target_label = str(target_dir)
+        self.target_dir = Path(target_dir).resolve()
         self.findings = []
-        self.stats = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0, "Info": 0}
+        self.seen = set()
 
-    def add_finding(self, category, title, severity, file_path, line_num, description, remediation):
+    def add(self, category, title, severity, file_path, line, evidence, description, remediation):
+        try:
+            location = str(Path(file_path).resolve().relative_to(self.target_dir))
+        except ValueError:
+            location = str(file_path)
+        key = (category, title, location, line, evidence)
+        if key in self.seen:
+            return
+        self.seen.add(key)
         self.findings.append({
-            "category": category,
-            "title": title,
-            "severity": severity,
-            "file": str(file_path),
-            "line": line_num,
-            "description": description,
-            "remediation": remediation
+            "id": f"F{len(self.findings)+1:03d}",
+            "category": category, "title": title, "severity": severity,
+            "file": location, "line": line, "evidence": evidence.strip()[:240],
+            "description": description, "remediation": remediation
         })
-        self.stats[severity] = self.stats.get(severity, 0) + 1
+
+    def _line_for(self, path, needle):
+        try:
+            for n, text in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+                if needle in text:
+                    return n
+        except OSError:
+            pass
+        return 1
 
     def scan_manifest(self):
-        """Scans AndroidManifest.xml for configuration weaknesses."""
-        manifest_paths = list(self.target_dir.glob("**/AndroidManifest.xml"))
-        if not manifest_paths:
-            print("[!] Warning: AndroidManifest.xml not found in target path.")
-            return
-
-        for manifest_path in manifest_paths:
+        for path in self.target_dir.rglob("AndroidManifest.xml"):
             try:
-                tree = ET.parse(manifest_path)
-                root = tree.getroot()
-                ns = {'android': 'http://schemas.android.com/apk/res/android'}
+                root = ET.parse(path).getroot()
+            except (ET.ParseError, OSError) as exc:
+                print(f"[!] Could not parse {path}: {exc}")
+                continue
+            app = root.find("application")
+            if app is None:
+                continue
+            checks = [
+                ("debuggable", "true", "High", "Application is debuggable",
+                 "Debug builds can expose runtime state and facilitate instrumentation.",
+                 'Set android:debuggable="false" in release builds.'),
+                ("allowBackup", "true", "Medium", "Application backup is enabled",
+                 "Backups may expose app data depending on Android version and backup configuration.",
+                 'Review backup rules and set android:allowBackup="false" when backups are not required.'),
+                ("usesCleartextTraffic", "true", "High", "Cleartext network traffic is permitted",
+                 "The app permits HTTP traffic, which can expose data to network interception.",
+                 'Set android:usesCleartextTraffic="false" and use HTTPS for all endpoints.')
+            ]
+            for attr, value, sev, title, desc, fix in checks:
+                if app.attrib.get(ANDROID_NS + attr, "").lower() == value:
+                    needle = f'android:{attr}="{value}"'
+                    self.add("Android Manifest", title, sev, path, self._line_for(path, needle),
+                             needle, desc, fix)
+            for permission in root.findall("uses-permission"):
+                name = permission.attrib.get(ANDROID_NS + "name", "")
+                if name in {"android.permission.READ_SMS", "android.permission.WRITE_EXTERNAL_STORAGE"}:
+                    needle = f'android:name="{name}"'
+                    self.add("Excessive Permissions", f"Sensitive permission requested: {name}", "Medium",
+                             path, self._line_for(path, needle), needle,
+                             "This permission is sensitive or broad and should be justified by a clear feature need.",
+                             "Remove unused permissions and request the minimum permissions required.")
+            for kind in ("activity", "service", "receiver", "provider"):
+                for comp in app.findall(kind):
+                    name = comp.attrib.get(ANDROID_NS + "name", "Unknown")
+                    exported = comp.attrib.get(ANDROID_NS + "exported")
+                    filters = comp.findall("intent-filter")
+                    is_launcher = any(
+                        any(a.attrib.get(ANDROID_NS + "name") == "android.intent.action.MAIN"
+                            for a in f.findall("action")) for f in filters)
+                    is_exported = exported == "true" or (exported is None and bool(filters))
+                    if is_exported and not is_launcher:
+                        needle = f'android:name="{name}"'
+                        self.add("Android Manifest", f"Exported {kind}: {name}", "Medium", path,
+                                 self._line_for(path, needle), f"{name}, android:exported={exported!r}",
+                                 "An exported component may be reachable by other apps; access controls must be checked.",
+                                 f'Set android:exported="false" if external access is not needed, or protect it with appropriate permissions.')
 
-                app = root.find('application')
-                if app is not None:
-                    # Check debuggable
-                    debuggable = app.attrib.get('{http://schemas.android.com/apk/res/android}debuggable')
-                    if debuggable == 'true':
-                        self.add_finding(
-                            "M1 - Improper Platform Usage",
-                            "Application is Debuggable",
-                            "High",
-                            manifest_path,
-                            1,
-                            "android:debuggable is set to 'true'. This allows runtime hooking, memory inspection, and debugger attachment.",
-                            "Set android:debuggable=\"false\" in production release builds."
-                        )
-
-                    # Check allowBackup
-                    backup = app.attrib.get('{http://schemas.android.com/apk/res/android}allowBackup')
-                    if backup == 'true' or backup is None:
-                        self.add_finding(
-                            "M2 - Insecure Data Storage",
-                            "Application Allows Data Backup",
-                            "Medium",
-                            manifest_path,
-                            1,
-                            "android:allowBackup is enabled. Attackers can extract application data via 'adb backup'.",
-                            "Set android:allowBackup=\"false\" to prevent unauthorized local extraction."
-                        )
-
-                    # Check cleartext traffic
-                    cleartext = app.attrib.get('{http://schemas.android.com/apk/res/android}usesCleartextTraffic')
-                    if cleartext == 'true':
-                        self.add_finding(
-                            "M3 - Insecure Communication",
-                            "Cleartext HTTP Traffic Permitted",
-                            "Critical",
-                            manifest_path,
-                            1,
-                            "android:usesCleartextTraffic is set to 'true'. Transmitted data is vulnerable to Man-in-the-Middle (MITM) attacks.",
-                            "Set android:usesCleartextTraffic=\"false\" and configure network_security_config.xml to enforce HTTPS."
-                        )
-
-                    # Check exported components (Activities, Services, Receivers)
-                    for comp_type in ['activity', 'service', 'receiver', 'provider']:
-                        for comp in app.findall(comp_type):
-                            name = comp.attrib.get('{http://schemas.android.com/apk/res/android}name', 'Unknown')
-                            exported = comp.attrib.get('{http://schemas.android.com/apk/res/android}exported')
-                            intent_filters = comp.findall('intent-filter')
-
-                            # Android default rule: if intent-filter exists and exported is not set, it defaults to true
-                            is_exported = (exported == 'true') or (exported is None and len(intent_filters) > 0)
-                            
-                            # Ignore main launcher activity
-                            is_main_launcher = False
-                            for ifilter in intent_filters:
-                                action = ifilter.find('action')
-                                if action is not None and 'MAIN' in action.attrib.get('{http://schemas.android.com/apk/res/android}name', ''):
-                                    is_main_launcher = True
-
-                            if is_exported and not is_main_launcher:
-                                self.add_finding(
-                                    "M1 - Improper Platform Usage",
-                                    f"Exported {comp_type.capitalize()}: {name}",
-                                    "Medium",
-                                    manifest_path,
-                                    1,
-                                    f"Component '{name}' is publicly exported and accessible by any third-party app on the device without permission checks.",
-                                    f"Set android:exported=\"false\" on <{comp_type}> or apply a signature-level custom permission."
-                                )
-
-            except Exception as e:
-                print(f"[!] Error parsing manifest {manifest_path}: {e}")
-
-    def scan_source_code(self):
-        """Scans Java, Kotlin, and Smali source files for code-level security issues."""
-        extensions = [".java", ".kt", ".smali"]
-        code_files = [f for f in self.target_dir.rglob("*") if f.suffix.lower() in extensions]
-
+    def scan_source(self):
         patterns = [
-            # M4: Hardcoded Credentials
-            (
-                r'("admin"|"password"|"123456"|"secret")\s*\.equals|equals\s*\(\s*("admin"|"password"|"123456"|"secret")',
-                "M4 - Insecure Authentication",
-                "Hardcoded Credentials in Logic",
-                "Critical",
-                "Hardcoded credentials detected in conditional evaluation logic.",
-                "Authenticate against a secure remote backend. Never embed plaintext credentials in client source code."
-            ),
-            (
-                r'(String|var|val)\s+(password|passwd|apiKey|api_key|secret_key)\s*=\s*["\'][^"\']+["\']',
-                "M4 - Insecure Authentication",
-                "Hardcoded Secret / API Key",
-                "High",
-                "Hardcoded secret string found in source code.",
-                "Store sensitive credentials in secure remote key management services or Android KeyStore."
-            ),
-            # M5: Weak Cryptography (MD5 / DES)
-            (
-                r'MessageDigest\.getInstance\s*\(\s*["\']MD5["\']\s*\)',
-                "M5 - Insufficient Cryptography",
-                "Use of Insecure Hash Algorithm (MD5)",
-                "High",
-                "MD5 algorithm is vulnerable to collision attacks and rainbow-table cracking.",
-                "Replace MD5 with SHA-256 or modern key derivation functions (PBKDF2, bcrypt, Argon2)."
-            ),
-            (
-                r'Cipher\.getInstance\s*\(\s*["\']DES|AES/ECB["\']\s*\)',
-                "M5 - Insufficient Cryptography",
-                "Insecure Cipher Mode (DES / ECB)",
-                "High",
-                "DES is deprecated and ECB mode does not provide cryptographic semantic security.",
-                "Use AES/GCM/NoPadding with authenticated encryption."
-            ),
-            (
-                r'String\s+key\s*=\s*["\'][0-9a-zA-Z]{8,}["\']',
-                "M5 - Insufficient Cryptography",
-                "Hardcoded Symmetric Encryption Key",
-                "High",
-                "Static symmetric encryption key embedded in application binary.",
-                "Generate cryptographically secure random keys and manage them with Android KeyStore."
-            ),
-            # M2: Insecure Logging / Data Storage
-            (
-                r'Log\.(d|v|i)\s*\([^,]+,\s*.*(password|pin|token|credential|secret)',
-                "M2 - Insecure Data Storage",
-                "Sensitive Information Leaked to Logcat",
-                "Medium",
-                "Sensitive authentication or user data is printed to system logs.",
-                "Strip debug logs in release builds using ProGuard/R8 rules."
-            ),
-            (
-                r'getSharedPreferences\s*\(.*MODE_WORLD_READABLE',
-                "M2 - Insecure Data Storage",
-                "World Readable SharedPreferences",
-                "High",
-                "Shared preferences created with MODE_WORLD_READABLE can be inspected by any local application.",
-                "Use MODE_PRIVATE or EncryptedSharedPreferences."
-            ),
-            # M3: Insecure HTTP URLs
-            (
-                r'["\']http://[a-zA-Z0-9\./_-]+["\']',
-                "M3 - Insecure Communication",
-                "Unencrypted HTTP URL in Source",
-                "Medium",
-                "Communication with an HTTP URL exposes network traffic to eavesdropping.",
-                "Enforce HTTPS across all network requests."
-            )
+            (r'Log\.(?:d|v|i|w|e)\s*\([^;\n]*(?:password|passwd|token|secret|credential|pin)',
+             "Sensitive data in logs", "Medium", "M2 - Insecure Data Storage",
+             "Logging authentication or secret-related data may expose it through device logs.",
+             "Remove sensitive values from logs; avoid logging credentials and tokens in all builds."),
+            (r'getSharedPreferences\s*\(', "Use of SharedPreferences", "Info", "Review - Data Storage",
+             "SharedPreferences is not automatically insecure, but sensitive values stored without encryption require review.",
+             "Do not store passwords or long-lived tokens in plaintext preferences; use an appropriate secure storage design."),
+            (r'\.putString\s*\(\s*["\'](?:password|passwd|token|secret|api[_-]?key)["\']',
+             "Sensitive value written to preferences", "High", "M2 - Insecure Data Storage",
+             "A secret-like value is written to preferences; confirm whether it is encrypted and necessary.",
+             "Avoid storing passwords. For tokens, use short lifetimes and platform-backed secure storage."),
+            (r'MessageDigest\.getInstance\s*\(\s*["\'](?:MD5|SHA-1)["\']\s*\)',
+             "Weak hash algorithm", "High", "M5 - Insufficient Cryptography",
+             "MD5 and SHA-1 are not suitable for modern security-sensitive hashing.",
+             "For passwords, use a salted password KDF such as Argon2id, scrypt, bcrypt, or PBKDF2 with suitable parameters."),
+            (r'Cipher\.getInstance\s*\(\s*["\'](?:DES|DESede|AES/ECB[^"\']*)["\']',
+             "Weak cipher or ECB mode", "High", "M5 - Insufficient Cryptography",
+             "DES is obsolete and ECB mode can reveal patterns in encrypted data.",
+             "Use authenticated encryption such as AES-GCM with nonce management and platform-managed keys."),
+            (r'(?:STATIC_KEY|SECRET_KEY|ENCRYPTION_KEY|API_KEY)\s*=\s*["\'][^"\']{8,}["\']',
+             "Potential hardcoded key or secret", "High", "M5 - Insufficient Cryptography",
+             "A constant resembling a cryptographic key or secret appears in source code.",
+             "Do not embed reusable secrets in client apps; use server-side secret management or Android Keystore for device-held keys."),
+            (r'["\']http://[^"\']+["\']',
+             "HTTP endpoint in source", "High", "M3 - Insecure Communication",
+             "An HTTP URL is not encrypted in transit and may expose requests or responses.",
+             "Use HTTPS with valid certificate validation; disable cleartext traffic unless a documented exception is required."),
+            (r'(?:equals\s*\(\s*["\'](?:admin|password|123456|secret)["\']|["\'](?:admin|password|123456|secret)["\']\s*\.equals)',
+             "Hardcoded credential check", "Critical", "M4 - Insecure Authentication",
+             "A known credential string is compared directly in client-side logic.",
+             "Perform authentication and authorization on a trusted backend; never embed fixed user credentials in the app."),
         ]
-
-        for file_path in code_files:
+        extensions = {".java", ".kt", ".smali"}
+        skip_dirs = {".git", "build", ".gradle", "__pycache__"}
+        for path in self.target_dir.rglob("*"):
+            if not path.is_file() or path.suffix.lower() not in extensions:
+                continue
+            if any(part in skip_dirs for part in path.parts):
+                continue
             try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    for line_num, line in enumerate(f, start=1):
-                        for regex, category, title, severity, desc, rem in patterns:
-                            if re.search(regex, line, re.IGNORECASE):
-                                self.add_finding(category, title, severity, file_path, line_num, desc, rem)
-            except Exception as e:
-                print(f"[!] Error scanning file {file_path}: {e}")
+                lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            except OSError:
+                continue
+            for line_no, line in enumerate(lines, 1):
+                for pattern, title, severity, category, desc, fix in patterns:
+                    if re.search(pattern, line, re.IGNORECASE):
+                        self.add(category, title, severity, path, line_no, line, desc, fix)
 
-    def generate_console_summary(self):
-        print("\n" + "=" * 75)
-        print("  ANDROID SECURITY ASSESSMENT - STATIC SCAN RESULTS (OWASP MASVS)")
-        print("=" * 75)
-        print(f"Target Scanned: {self.target_dir}")
-        print(f"Total Findings: {len(self.findings)}")
-        print(f"  [CRITICAL]: {self.stats['Critical']} | [HIGH]: {self.stats['High']} | [MEDIUM]: {self.stats['Medium']} | [LOW]: {self.stats['Low']}")
-        print("-" * 75)
-
-        for idx, f in enumerate(self.findings, start=1):
-            rel_file = os.path.relpath(f['file'], self.target_dir)
-            print(f"#{idx} [{f['severity']}] {f['title']}")
-            print(f"    Category    : {f['category']}")
-            print(f"    Location    : {rel_file} (Line {f['line']})")
-            print(f"    Description : {f['description']}")
-            print(f"    Remediation : {f['remediation']}\n")
-        print("=" * 75)
-
-    def export_markdown_report(self, output_file="scan_report.md"):
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write("# Android Application Security Assessment Report\n\n")
-            f.write(f"**Target Directory:** `{self.target_dir}`  \n")
-            f.write(f"**Total Findings:** {len(self.findings)}  \n\n")
-            f.write("### Severity Summary\n")
-            f.write(f"- **Critical:** {self.stats['Critical']}\n")
-            f.write(f"- **High:** {self.stats['High']}\n")
-            f.write(f"- **Medium:** {self.stats['Medium']}\n")
-            f.write(f"- **Low:** {self.stats['Low']}\n\n")
-            f.write("### Detailed Findings\n\n")
-            f.write("| ID | Category | Finding | Severity | Location | Remediation |\n")
-            f.write("|:---|:---|:---|:---|:---|:---|\n")
-            for idx, item in enumerate(self.findings, start=1):
-                rel_file = os.path.relpath(item['file'], self.target_dir)
-                f.write(f"| {idx} | {item['category']} | {item['title']} | **{item['severity']}** | `{rel_file}:{item['line']}` | {item['remediation']} |\n")
-        print(f"[+] Security report exported successfully to: {output_file}")
+    def result(self):
+        counts = {s: sum(f["severity"] == s for f in self.findings) for s in SEVERITIES}
+        return {
+            "tool": "Android Static Security Scanner",
+            "version": "2.0",
+            "scan_type": "Static pattern analysis",
+            "target": self.target_label,
+            "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+            "limitations": "Pattern-based triage only. Findings require manual validation; absence of findings does not prove security.",
+            "total_findings": len(self.findings),
+            "severity_counts": counts,
+            "findings": self.findings
+        }
 
 def main():
-    target = sys.argv[1] if len(sys.argv) > 1 else "target_app"
-    if not os.path.exists(target):
-        print(f"[!] Target directory '{target}' does not exist.")
-        print("Usage: python android_security_scanner.py <path_to_app_folder>")
-        sys.exit(1)
+    target = Path(sys.argv[1] if len(sys.argv) > 1 else "target_app")
+    report_name = sys.argv[2] if len(sys.argv) > 2 else "scan_report"
+    
+    # Strip extension if provided
+    if report_name.endswith(".json"):
+        report_base = report_name[:-5]
+    elif report_name.endswith(".md"):
+        report_base = report_name[:-3]
+    else:
+        report_base = report_name
 
-    print(f"[*] Initiating Android SAST Scan against: {target}...")
+    if not target.exists() or not target.is_dir():
+        print(f"[!] Target directory not found: {target}")
+        print("Usage: python android_security_scanner.py <target_directory> [output_report_name]")
+        return 2
     scanner = AndroidSecurityScanner(target)
     scanner.scan_manifest()
-    scanner.scan_source_code()
-    scanner.generate_console_summary()
-    scanner.export_markdown_report("scan_report.md")
+    scanner.scan_source()
+    result = scanner.result()
+    print(f"\nAndroid Static Security Scan — {result['target']}")
+    print(f"Findings: {result['total_findings']}")
+    for severity in SEVERITIES:
+        print(f"  {severity}: {result['severity_counts'][severity]}")
+    for item in result["findings"]:
+        print(f"\n[{item['severity']}] {item['id']} {item['title']}")
+        print(f"  Location: {item['file']}:{item['line']}")
+        print(f"  Evidence: {item['evidence']}")
+        print(f"  Why it matters: {item['description']}")
+        print(f"  Recommended fix: {item['remediation']}")
+    out_json = Path(f"{report_base}.json")
+    out_md = Path(f"{report_base}.md")
+    out_json.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    with out_md.open("w", encoding="utf-8") as f:
+        f.write(f"# Android Static Security Scan Report ({report_base})\n\n")
+        f.write(f"- **Target:** `{result['target']}`\n- **Generated (UTC):** {result['generated_at_utc']}\n")
+        f.write(f"- **Total findings:** {result['total_findings']}\n\n")
+        f.write("> Pattern-based triage only. Validate findings manually; no findings does not prove security.\n\n")
+        f.write("## Severity summary\n\n| Severity | Count |\n|---|---:|\n")
+        for s in SEVERITIES:
+            f.write(f"| {s} | {result['severity_counts'][s]} |\n")
+        f.write("\n## Findings\n\n")
+        for item in result["findings"]:
+            f.write(f"### {item['id']} — {item['title']} ({item['severity']})\n\n")
+            f.write(f"- **Category:** {item['category']}\n- **Location:** `{item['file']}:{item['line']}`\n")
+            f.write(f"- **Evidence:** `{item['evidence'].replace('`', '')}`\n- **Why it matters:** {item['description']}\n")
+            f.write(f"- **Recommended fix:** {item['remediation']}\n\n")
+    print(f"\n[+] Wrote {out_json.resolve()} and {out_md.resolve()}")
+    return 0
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
